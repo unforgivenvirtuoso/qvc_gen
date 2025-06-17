@@ -9,7 +9,6 @@ const QvcGen: React.FC = () => {
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const handleGenerate = async () => {
     console.log("Generate button clicked");
@@ -109,7 +108,7 @@ const QvcGen: React.FC = () => {
         </button>
       </div>
 
-      <div className="result">
+      <div className="card result">
         <h2>Generated Marketing Copy:</h2>
         <p>{displayedCopy || "Your copy will appear here..."}</p>
         {marketingCopy && (
