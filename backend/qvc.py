@@ -1,0 +1,94 @@
+import os
+import re
+import httpx
+from bs4 import BeautifulSoup
+from openai import AsyncOpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def format_feature(feature: str) -> str:
+    # Replace spaces inside a feature with dashes, trim whitespace
+    return "-".join(feature.strip().split())
+
+async def search_qvc_product(title: str, features: list[str]) -> str:
+    # Format features for URL
+    formatted_features = [format_feature(f) for f in features]
+    # Join title and features with "+"
+    query = "+".join([title] + formatted_features)
+
+    search_url = f"https://www.qvcuk.com/catalog/search.html?keyword={query}"
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(search_url)
+        response.raise_for_status()
+        html = response.text
+
+    soup = BeautifulSoup(html, "html.parser")
+    # Find first product link <a> with data-prod-id
+    first_product_link = soup.find("a", attrs={"data-prod-id": True})
+    if not first_product_link:
+        raise ValueError("No products found in search results")
+
+    product_url = first_product_link.get("href")
+    product_id = first_product_link["data-prod-id"]
+
+    # Return the product ID and the full URL to use/display if needed
+    return product_id, product_url
+
+async def fetch_product_info(product_id: str):
+    url = f"https://api.qvc.com/api/sales/presentation/v3/uk/products/list/{product_id}?response-depth=full"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+    product_data = data.get("products", {}).get(product_id, {})
+
+    # Extract title and features
+    title = product_data.get("shortDescription", "Unknown Product")
+    long_description = product_data.get("longDescription", "")
+
+    # Optional: turn the long description into a list of bullet points
+    # Split sentences and remove HTML
+    raw_sentences = re.split(r'(?<=\.)\s+', long_description)
+    features = [re.sub(r"<[^>]*>", "", sentence).strip() for sentence in raw_sentences if sentence.strip()]
+
+    # Build full image URLs
+    base_image_url = product_data.get("baseImageUrl", "")
+    assets = product_data.get("assets", [])
+    image_assets = [
+        {
+            "url": (a["url"] if a["url"].startswith("http")
+                    else base_image_url + a["url"]),
+            "typeCode": a.get("typeCode", "")
+        }
+        for a in assets
+        if a.get("type") == "image"
+    ]
+
+    return {
+        "product_id": product_id,
+        "title": title,
+        "features": features,
+        "images": image_assets # list of image urls
+    }
+
+async def generate_marketing_copy(title: str, features: list[str]) -> str:
+    prompt = f"""Write a compelling 100-word marketing copy for the following product for QVC UK social media.
+
+Product: {title}
+Features: {", ".join(features)}"""
+
+    response = await openai_client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        messages=[
+            {"role": "system", "content": "You are a product marketing expert for QVC."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.75,
+        max_tokens=300,
+    )
+    return response.choices[0].message.content.strip()
