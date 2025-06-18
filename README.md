@@ -1,6 +1,6 @@
 # qvc_gen
 
-How to get the project up and running
+To get the project up and running
 
 Create and activate a virtual enviornment
 ```
