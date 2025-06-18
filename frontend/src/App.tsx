@@ -77,17 +77,18 @@ const QvcGen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (marketingCopy) {
-      let index = 0;
-      const interval = setInterval(() => {
-        setDisplayedCopy((prev) => prev + marketingCopy.charAt(index));
-        index++;
-        if (index >= marketingCopy.length) clearInterval(interval);
-      }, 20);
-      return () => clearInterval(interval);
-    }
+    if (!marketingCopy) return;
+    const indexRef = { current: 0 };
+    const interval = setInterval(() => {
+      setDisplayedCopy((prev) => prev + marketingCopy.charAt(indexRef.current));
+      indexRef.current++;
+      if (indexRef.current >= marketingCopy.length) {
+        clearInterval(interval);
+      }
+    }, 20);
+    return () => clearInterval(interval);
   }, [marketingCopy]);
-
+  
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(marketingCopy);
