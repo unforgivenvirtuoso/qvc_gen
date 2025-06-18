@@ -23,5 +23,6 @@ Install node modules and start
 ```
 
 In the backend dir you will also need to create a .env file with this var
-
+```
 OPENAI_API_KEY=<openai api key here>
+```
