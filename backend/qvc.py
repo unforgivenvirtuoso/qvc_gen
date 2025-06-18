@@ -45,47 +45,74 @@ async def fetch_product_info(product_id: str):
         response.raise_for_status()
         data = response.json()
 
-    product_data = data.get("products", {}).get(product_id, {})
+        product_data = data.get("products", {}).get(product_id, {})
 
-    # Extract title and features
-    title = product_data.get("shortDescription", "Unknown Product")
-    long_description = product_data.get("longDescription", "")
+        # Extract title and long description
+        title = product_data.get("shortDescription", "Unknown Product")
+        long_description = product_data.get("longDescription", "")
 
-    # Optional: turn the long description into a list of bullet points
-    # Split sentences and remove HTML
-    raw_sentences = re.split(r'(?<=\.)\s+', long_description)
-    features = [re.sub(r"<[^>]*>", "", sentence).strip() for sentence in raw_sentences if sentence.strip()]
+        # Clean and split long description
+        raw_sentences = re.split(r'(?<=\.)\s+', long_description)
+        features = [re.sub(r"<[^>]*>", "", sentence).strip() for sentence in raw_sentences if sentence.strip()]
 
-    # Build full image URLs
-    base_image_url = product_data.get("baseImageUrl", "")
-    assets = product_data.get("assets", [])
-    image_assets = [
-        {
-            "url": (a["url"] if a["url"].startswith("http")
-                    else base_image_url + a["url"]),
-            "typeCode": a.get("typeCode", "")
+        # Fetch additional info from attachments (e.g., feature bullets from DSCLHTML)
+        attachments = product_data.get("attachments", [])
+        for attachment in attachments:
+            if attachment.get("type") == "attachment" and attachment.get("typeCode") == "DSCLHTML":
+                info_url = attachment.get("url")
+                if info_url:
+                    try:
+                        html_response = await client.get(info_url)
+                        html_response.raise_for_status()
+                        soup = BeautifulSoup(html_response.text, "html.parser")
+
+                        # Grab text from list items and paragraphs
+                        extra_features = [
+                            tag.get_text(strip=True)
+                            for tag in soup.select("ul li, p")
+                            if tag.get_text(strip=True) and len(tag.get_text(strip=True)) > 30
+                        ]
+
+                        features.extend(extra_features)
+                    except Exception as e:
+                        print(f"Failed to fetch or parse additional info for {product_id}: {e}")
+
+        # Collect product images
+        base_image_url = product_data.get("baseImageUrl", "")
+        assets = product_data.get("assets", [])
+        image_assets = [
+            {
+                "url": (a["url"] if a["url"].startswith("http")
+                        else base_image_url + a["url"]),
+                "typeCode": a.get("typeCode", "")
+            }
+            for a in assets
+            if a.get("type") == "image"
+        ]
+
+        return {
+            "product_id": product_id,
+            "title": title,
+            "features": features,
+            "images": image_assets
         }
-        for a in assets
-        if a.get("type") == "image"
-    ]
-
-    return {
-        "product_id": product_id,
-        "title": title,
-        "features": features,
-        "images": image_assets # list of image urls
-    }
 
 async def generate_marketing_copy(title: str, features: list[str]) -> str:
     prompt = f"""Write a compelling 100-word marketing copy for the following product for QVC UK social media.
+    Write in a friendly, persuasive tone and highlight unique selling points of the product.
+    Based on the type of product given take that into consideration when generating the marketing copy.
 
-Product: {title}
-Features: {", ".join(features)}"""
+    Product: {title}
+    Features: {", ".join(features)}"""
 
     response = await openai_client.chat.completions.create(
         model="gpt-4-1106-preview",
         messages=[
-            {"role": "system", "content": "You are a product marketing expert for QVC."},
+            {"role": "system", 
+            "content": "You are a product marketing expert for QVC. " + 
+            "Ensure to use the most up to date social media marketing practices and strategies. " + 
+            "This is for social media use primarily youtube, instagram and tiktok."
+            },
             {"role": "user", "content": prompt}
         ],
         temperature=0.75,
