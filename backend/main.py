@@ -35,13 +35,18 @@ async def auto_generate(data: ProductInput):
         copy = await generate_marketing_copy(info["title"], info["features"])
         print("Generated marketing copy.")
 
+        # Return all required fields
         return {
-            "product_id": info["product_id"],
-            "title": info["title"],
-            "features": info["features"],
+            "product_id": info.get("product_id", ""),
+            "title": info.get("title", ""),
+            "brand": info.get("brand", ""),
+            "price": info.get("price"),  # can be None
+            "original_price": info.get("original_price"),  # can be None
+            "features": info.get("features", []),
             "images": [img["url"] for img in info.get("images", [])],
             "marketing_copy": copy,
-            "search_url": product_url
+            "canonical_url": info.get("canonical_url", ""),
+            "product_url": product_url
         }
 
     except Exception as e:

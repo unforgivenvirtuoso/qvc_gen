@@ -160,3 +160,21 @@ h2 {
   object-fit: cover;
   box-shadow: 0 1px 6px rgba(0,0,0,0.1);
 }
+
+.additional-info-card {
+  /* Inherits .card via component, but you can customize further here */
+  background: linear-gradient(145deg, #1a1a2e, #1c1c3e); /* slightly darker variant */
+  border: 1px solid #5b21b6;
+  padding-top: 16px;
+}
+
+.additional-info-card p,
+.additional-info-card li {
+  line-height: 1.6;
+  margin: 6px 0;
+}
+
+.additional-info-card ul {
+  padding-left: 1.25rem;
+  list-style-type: disc;
+}

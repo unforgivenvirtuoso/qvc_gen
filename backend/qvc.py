@@ -45,18 +45,25 @@ async def fetch_product_info(product_id: str):
         response.raise_for_status()
         data = response.json()
 
-        product_data = data.get("products", {}).get(product_id, {})
+        product_data = data.get("products", {}).get(str(product_id), {})
 
-        # Extract title and long description
+        # Extract core product info
         title = product_data.get("shortDescription", "Unknown Product")
+        brand = product_data.get("brandName", "Unknown Brand")
+        canonical_url = product_data.get("canonicalURL", "")
         long_description = product_data.get("longDescription", "")
+
+        # Prices
+        pricing = product_data.get("pricing", {})
+        price = pricing.get("currentMinimumSellingPrice")
+        original_price = pricing.get("qvcMaximumPrice")  # Often the higher/crossed-out price
 
         # Clean and split long description
         raw_sentences = re.split(r'(?<=\.)\s+', long_description)
         features = [re.sub(r"<[^>]*>", "", sentence).strip() for sentence in raw_sentences if sentence.strip()]
 
-        # Fetch additional info from attachments (e.g., feature bullets from DSCLHTML)
-        attachments = product_data.get("attachments", [])
+        # Fetch additional HTML-based feature info
+        attachments = product_data.get("assets", [])
         for attachment in attachments:
             if attachment.get("type") == "attachment" and attachment.get("typeCode") == "DSCLHTML":
                 info_url = attachment.get("url")
@@ -66,7 +73,6 @@ async def fetch_product_info(product_id: str):
                         html_response.raise_for_status()
                         soup = BeautifulSoup(html_response.text, "html.parser")
 
-                        # Grab text from list items and paragraphs
                         extra_features = [
                             tag.get_text(strip=True)
                             for tag in soup.select("ul li, p")
@@ -77,7 +83,7 @@ async def fetch_product_info(product_id: str):
                     except Exception as e:
                         print(f"Failed to fetch or parse additional info for {product_id}: {e}")
 
-        # Collect product images
+        # Collect images
         base_image_url = product_data.get("baseImageUrl", "")
         assets = product_data.get("assets", [])
         image_assets = [
@@ -93,8 +99,12 @@ async def fetch_product_info(product_id: str):
         return {
             "product_id": product_id,
             "title": title,
+            "brand": brand,
+            "price": price,
+            "original_price": original_price,
             "features": features,
-            "images": image_assets
+            "images": image_assets,
+            "canonical_url": canonical_url
         }
 
 async def generate_marketing_copy(title: str, features: list[str]) -> str:
